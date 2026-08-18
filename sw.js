@@ -1,8 +1,9 @@
-const CACHE = 'star-bottle-v3';
+const CACHE = 'star-bottle-v4';
 const ASSETS = [
   './',
   './index.html',
   './star-bottle.html',
+  './supabase.min.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',

@@ -15,26 +15,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Serif+SC:wght@400;500;700&display=swap" rel="stylesheet">
-  <!-- Supabase JS：依次尝试多个 CDN，确保在国内网络也能加载成功 -->
-  <script>
-    window.__supaCdn = [
-      'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',
-      'https://fastly.jsdelivr.net/npm/@supabase/supabase-js@2',
-      'https://unpkg.com/@supabase/supabase-js@2'
-    ];
-    (function () {
-      var i = 0;
-      function load() {
-        if (i >= window.__supaCdn.length) return;
-        var s = document.createElement('script');
-        s.src = window.__supaCdn[i++];
-        s.onload = function () { window.__supaReady = true; };
-        s.onerror = load;
-        document.head.appendChild(s);
-      }
-      load();
-    })();
-  </script>
+  <!-- Supabase JS：本地自托管（同源加载，不依赖任何第三方 CDN，国内网络也能稳定加载） -->
+  <script src="./supabase.min.js"></script>
   <style>
     /* ===== Reset & Base ===== */
     * {
@@ -988,6 +970,14 @@
       });
     }
 
+    // 轮询兜底：每 4 秒拉取一次云端，确保即使实时通道被网络拦截，双方也能保持同步
+    var __pollTimer = null;
+    function startSyncPolling() {
+      if (__pollTimer) return;
+      __pollTimer = setInterval(function() {
+        if (supabase && currentRoom) syncFromCloud();
+      }, 4000);
+    }
     /* ===== Date/Time ===== */
     var weekdays = ['星期日','星期一','星期二','星期三','星期四','星期五','星期六'];
     function formatDate(d) {
@@ -1360,7 +1350,10 @@
     function openWriteModal() {
       closeMenu();
       stopRain();
+      __saving = false;
       selectedEmotion = null;
+      var fb = document.getElementById('foldBtn');
+      if (fb) fb.disabled = true;
       document.getElementById('letterText').value = '';
       document.querySelectorAll('.emotion-btn').forEach(function(b) { b.classList.remove('selected'); });
       updateFoldBtn();
@@ -1491,6 +1484,8 @@
         }
         initPhysicsStars();
         renderLettersList();
+        // 删除后自动关闭信件列表弹窗，回到瓶子（让"页面"关掉）
+        setTimeout(function() { closeViewModal(); }, 350);
       } else {
         btn.dataset.confirm = '1';
         btn.textContent = '确认删除？';
@@ -1532,9 +1527,17 @@
     }
 
     /* ===== Fold Animation & Save ===== */
+    var __saving = false;
     function foldAndSave() {
-      var text = document.getElementById('letterText').value.trim();
-      if (!selectedEmotion || !text) return;
+      var foldBtn = document.getElementById('foldBtn');
+      if (__saving) return;                       // 守卫：防止动画期间重复点击
+      if (foldBtn) foldBtn.disabled = true;        // 立即禁用按钮，彻底杜绝多次保存
+      var text = (document.getElementById('letterText').value || '').trim();
+      if (!selectedEmotion || !text) {
+        if (foldBtn) foldBtn.disabled = false;
+        return;
+      }
+      __saving = true;
 
       // Save letter（星星颜色全随机，与情绪无关）
       var now = new Date();
@@ -1551,20 +1554,28 @@
       letters.push(letter);
       saveLetters();
       if (supabase && currentRoom) {
-        supabase.from('letters').insert({
-          id: letter.id,
-          room: currentRoom,
-          emotion_level: letter.emotionLevel,
-          emotion_label: letter.emotionLabel,
-          star_colors: letter.starColors,
-          content: letter.content,
-          timestamp: letter.timestamp,
-          resolution: letter.resolution
-        }).then(function(res) { if (res.error) console.error(res.error); });
+        try {
+          supabase.from('letters').insert({
+            id: letter.id,
+            room: currentRoom,
+            emotion_level: letter.emotionLevel,
+            emotion_label: letter.emotionLabel,
+            star_colors: letter.starColors,
+            content: letter.content,
+            timestamp: letter.timestamp,
+            resolution: letter.resolution
+          }).then(function(res) { if (res.error) console.error(res.error); });
+        } catch (e) { console.error('云端写入失败（已保留到本机）', e); }
       }
 
-      // Close write modal
+      // Close write modal（无论云端是否成功，都先关掉写信弹窗）
       closeWriteModal();
+      // 清空表单，避免再次打开时残留、也避免重复保存
+      var ta = document.getElementById('letterText');
+      if (ta) ta.value = '';
+      selectedEmotion = null;
+      renderEmotionSelector();
+      updateFoldBtn();
 
       // Play fold animation
       var overlay = document.getElementById('foldOverlay');
@@ -1821,6 +1832,7 @@
             })
             .subscribe();
         }
+        startSyncPolling();   // 轮询兜底：即使实时 websocket 被墙也能同步
       } else {
         initPhysicsStars();
         renderLettersList();
@@ -1833,6 +1845,7 @@
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'letters' }, function() { syncFromCloud(); })
                 .subscribe();
             }
+            startSyncPolling();   // 轮询兜底
           } else {
             alert('云端连接稍慢：当前仅本机可见，刷新页面通常即可与 TA 同步。');
           }
