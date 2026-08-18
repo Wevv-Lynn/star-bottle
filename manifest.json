@@ -1,15 +1,19 @@
 {
-  "name": "星星瓶子 · 我的心情星瓶",
+  "name": "星星瓶子 · 我们的心情星瓶",
   "short_name": "星星瓶子",
-  "description": "把坏情绪折成星星，存进我的瓶子",
-  "start_url": "./star-bottle.html",
-  "scope": "./",
+  "description": "把坏情绪折成星星，存进我们共享的瓶子",
+  "lang": "zh-CN",
+  "dir": "ltr",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#1a1721",
   "theme_color": "#1a1721",
+  "categories": ["lifestyle", "personalization"],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }
